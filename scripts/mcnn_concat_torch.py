@@ -1,16 +1,3 @@
-"""
-mcnn_hla_torch.py  –  pHLADeep training script (PyTorch, GPU)
-==============================================================
-Input tensor from import_data: (N, 1, maxseq, num_feature)
-  Strategy A: (N, 1,  9, 1536)
-  Strategy B: (N, 1, 43, 1536)
-
-Conv architecture mirrors DeepScanCS:
-  Reshape to (N, num_feature, maxseq) — feature-as-channel, seq-as-width
-  Conv1d(num_feature, num_filters, kernel_size=ws) for ws in window_sizes
-  AdaptiveMaxPool1d(1) → flatten → concat → dropout → dense → softmax
-"""
-
 import os
 import gc
 import csv
@@ -33,7 +20,6 @@ from sklearn.utils.class_weight import compute_class_weight
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
                     stream=sys.stdout, force=True)
 
-# ── args ───────────────────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
 parser.add_argument("--data_path",    type=str, required=True)
 parser.add_argument("--output",       type=str, required=True)
@@ -47,8 +33,7 @@ parser.add_argument("--hidden",       type=int, default=500)
 parser.add_argument("--maxseq",       type=int, default=43)
 parser.add_argument("--num_feature",  type=int, default=1536)
 parser.add_argument("--epochs",       type=int, default=20)
-parser.add_argument("--batch_size",   type=int, default=64,
-                    help="Batch size — keep <=64 for 12 GB GPU with 1536-dim features")
+parser.add_argument("--batch_size",   type=int, default=64)
 parser.add_argument("--kfold",        type=int, default=5)
 parser.add_argument("--mode",         type=str, default="independent",
                     choices=["independent","cross"])
@@ -70,14 +55,7 @@ if torch.cuda.is_available():
     print(f"GPU: {prop.name}  ({prop.total_memory/1e9:.1f} GB)", flush=True)
 
 
-# ── DeepScan (PyTorch, Conv1d) ─────────────────────────────────────────────────
 class DeepScan(nn.Module):
-    """
-    Input:  (N, 1, maxseq, num_feature)
-    Reshape: (N, num_feature, maxseq) — feature=channels, seq=width
-    Conv1d(num_feature→num_filters, kernel=ws) for each window size
-    AdaptiveMaxPool1d(1) → flatten → concat branches → dropout → fc1 → fc2
-    """
     def __init__(self, maxseq, num_feature, window_sizes, num_filters, num_hidden):
         super().__init__()
         self.window_sizes = window_sizes
@@ -120,7 +98,6 @@ class DeepScan(nn.Module):
         return self.classifier(x)               # (N, 2)
 
 
-# ── data loading ───────────────────────────────────────────────────────────────
 def load_data():
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from import_data import MCNN_data_load
@@ -143,12 +120,8 @@ def get_class_weight(y):
     return torch.tensor(w, dtype=torch.float32).to(device)
 
 
-# ── manual batch loop (no DataLoader — avoids all threading/pin_memory issues) ──
 def train_epoch(model, x, y, optimizer, criterion, batch_size):
-    """
-    Manual numpy batch loop — same as TF DataGenerator pattern.
-    Shuffles indices, slices numpy arrays per batch, converts to tensor on GPU.
-    """
+    # manual numpy batch loop — same pattern as TF DataGenerator
     model.train()
     N = len(x)
     idx = np.random.permutation(N)
@@ -168,14 +141,12 @@ def train_epoch(model, x, y, optimizer, criterion, batch_size):
 
         total_loss += loss.item() * len(bi)
 
-        # progress every 100 batches
         if (b+1) % 100 == 0 or (b+1) == n_batches:
             print(f"  batch {b+1}/{n_batches}  loss={loss.item():.4f}", flush=True)
 
     return total_loss / N
 
 
-# ── evaluate ───────────────────────────────────────────────────────────────────
 def evaluate(model, x_test, y_test_raw, output_dir, plm_name="", save_pkl=False):
     model.eval()
     all_probs = []
@@ -205,7 +176,6 @@ def evaluate(model, x_test, y_test_raw, output_dir, plm_name="", save_pkl=False)
           f"MCC={mcc:.4f}  F1={f1:.4f}", flush=True)
     print(f"TP={tp} FP={fp} TN={tn} FN={fn}  threshold={thr:.4f}", flush=True)
 
-    # ROC PNG
     import matplotlib; matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     label = f"{plm_name}_" if plm_name else ""
@@ -232,7 +202,6 @@ def evaluate(model, x_test, y_test_raw, output_dir, plm_name="", save_pkl=False)
     return tp, fp, tn, fn, sens, spec, acc, mcc, auc
 
 
-# ── main ───────────────────────────────────────────────────────────────────────
 x_train, y_train, x_test, y_test = load_data()
 cw        = get_class_weight(y_train)
 criterion = nn.CrossEntropyLoss(weight=cw)
@@ -246,7 +215,7 @@ if args.mode == "independent":
     print(f"\nTraining on {device}  |  {len(x_train):,} train  {len(x_test):,} test  "
           f"batch={BS}", flush=True)
 
-    # warm up CUDA kernel on a tiny dummy batch to avoid stall on epoch 1 batch 1
+    # warm up CUDA kernels to avoid stall on first batch
     if device.type == "cuda":
         print("Warming up CUDA kernels ...", flush=True)
         dummy = torch.zeros(2, 1, MAXSEQ, NUM_FEATURE, device=device)
@@ -283,7 +252,6 @@ if args.mode == "independent":
     torch.save(model.state_dict(), wpath)
     print(f"Model saved: {wpath}", flush=True)
 
-# save CSV
 write_data.append(datetime.datetime.now() - start_time)
 with open(os.path.join(args.output, "results_plm_mcnn.csv"), "a", newline="") as f:
     csv.writer(f).writerow(write_data)
