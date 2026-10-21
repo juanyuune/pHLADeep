@@ -1,0 +1,186 @@
+============================================================
+DRY RUN MODE — nothing will be deleted
+============================================================
+
+============================================================
+Allele: HLA-A0101
+============================================================
+  [pos] train∩test duplicates: 0 ✓
+  [neg] train∩test duplicates: 0 ✓
+  [cross-label] pos_train∩neg_train conflicts: 0 ✓
+  [cross-label] pos_test∩neg_test conflicts: 0 ✓
+
+  Final counts after deduplication:
+    pos_train   :  5,309
+    neg_train   :  2,150
+    pos_test    :  1,328
+    neg_test    :    538
+    TOTAL       :  9,325
+  Removed this allele: 0
+
+============================================================
+Allele: HLA-A0201
+============================================================
+  [pos] train∩test duplicates: 0 ✓
+  [neg] train∩test duplicates: 0 ✓
+  [cross-label] pos_train∩neg_train conflicts: 0 ✓
+  [cross-label] pos_test∩neg_test conflicts: 0 ✓
+
+  Final counts after deduplication:
+    pos_train   :  5,498
+    neg_train   :  3,577
+    pos_test    :  1,375
+    neg_test    :    895
+    TOTAL       : 11,345
+  Removed this allele: 0
+
+============================================================
+Allele: HLA-A0301
+============================================================
+  [pos] train∩test duplicates: 0 ✓
+  [neg] train∩test duplicates: 0 ✓
+  [cross-label] pos_train∩neg_train conflicts: 0 ✓
+  [cross-label] pos_test∩neg_test conflicts: 0 ✓
+
+  Final counts after deduplication:
+    pos_train   :  1,919
+    neg_train   :  2,325
+    pos_test    :    480
+    neg_test    :    582
+    TOTAL       :  5,306
+  Removed this allele: 0
+
+============================================================
+Allele: HLA-A1101
+============================================================
+  [pos] train∩test duplicates: 0 ✓
+  [neg] train∩test duplicates: 0 ✓
+  [cross-label] pos_train∩neg_train conflicts: 0 ✓
+  [cross-label] pos_test∩neg_test conflicts: 0 ✓
+
+  Final counts after deduplication:
+    pos_train   :  5,957
+    neg_train   :  1,740
+    pos_test    :  1,490
+    neg_test    :    436
+    TOTAL       :  9,623
+  Removed this allele: 0
+
+============================================================
+Allele: HLA-A2402
+============================================================
+  [pos] train∩test duplicates: 0 ✓
+  [neg] train∩test duplicates: 0 ✓
+  [cross-label] pos_train∩neg_train conflicts: 0 ✓
+  [cross-label] pos_test∩neg_test conflicts: 0 ✓
+
+  Final counts after deduplication:
+    pos_train   :  8,188
+    neg_train   :  1,053
+    pos_test    :  2,048
+    neg_test    :    264
+    TOTAL       : 11,553
+  Removed this allele: 0
+
+============================================================
+Allele: HLA-B0702
+============================================================
+  [pos] train∩test duplicates: 0 ✓
+  [neg] train∩test duplicates: 0 ✓
+  [cross-label] pos_train∩neg_train conflicts: 0 ✓
+  [cross-label] pos_test∩neg_test conflicts: 0 ✓
+
+  Final counts after deduplication:
+    pos_train   : 11,437
+    neg_train   :  1,979
+    pos_test    :  2,860
+    neg_test    :    495
+    TOTAL       : 16,771
+  Removed this allele: 0
+
+============================================================
+Allele: HLA-B0801
+============================================================
+  [pos] train∩test duplicates: 0 ✓
+  [neg] train∩test duplicates: 0 ✓
+  [cross-label] pos_train∩neg_train conflicts: 0 ✓
+  [cross-label] pos_test∩neg_test conflicts: 0 ✓
+
+  Final counts after deduplication:
+    pos_train   :    837
+    neg_train   :    972
+    pos_test    :    210
+    neg_test    :    243
+    TOTAL       :  2,262
+  Removed this allele: 0
+
+============================================================
+Allele: HLA-B3501
+============================================================
+  [pos] train∩test duplicates: 0 ✓
+  [neg] train∩test duplicates: 0 ✓
+  [cross-label] pos_train∩neg_train conflicts: 0 ✓
+  [cross-label] pos_test∩neg_test conflicts: 0 ✓
+
+  Final counts after deduplication:
+    pos_train   :  7,731
+    neg_train   :    578
+    pos_test    :  1,933
+    neg_test    :    145
+    TOTAL       : 10,387
+  Removed this allele: 0
+
+============================================================
+Allele: HLA-B4001
+============================================================
+  [pos] train∩test duplicates: 0 ✓
+  [neg] train∩test duplicates: 0 ✓
+  [cross-label] pos_train∩neg_train conflicts: 0 ✓
+  [cross-label] pos_test∩neg_test conflicts: 0 ✓
+
+  Final counts after deduplication:
+    pos_train   :     26
+    neg_train   :    264
+    pos_test    :      7
+    neg_test    :     66
+    TOTAL       :    363
+  Removed this allele: 0
+
+============================================================
+Allele: HLA-B5101
+============================================================
+  [pos] train∩test duplicates: 0 ✓
+  [neg] train∩test duplicates: 0 ✓
+  [cross-label] pos_train∩neg_train conflicts: 0 ✓
+  [cross-label] pos_test∩neg_test conflicts: 0 ✓
+
+  Final counts after deduplication:
+    pos_train   :     48
+    neg_train   :    480
+    pos_test    :     12
+    neg_test    :    120
+    TOTAL       :    660
+  Removed this allele: 0
+
+============================================================
+Allele: HLA-B5701
+============================================================
+  [pos] train∩test duplicates: 0 ✓
+  [neg] train∩test duplicates: 0 ✓
+  [cross-label] pos_train∩neg_train conflicts: 0 ✓
+  [cross-label] pos_test∩neg_test conflicts: 0 ✓
+
+  Final counts after deduplication:
+    pos_train   :    376
+    neg_train   :  1,301
+    pos_test    :     95
+    neg_test    :    326
+    TOTAL       :  2,098
+  Removed this allele: 0
+
+============================================================
+SUMMARY
+============================================================
+Alleles processed : 11
+Total files removed: 0
+(DRY RUN — nothing was actually deleted)

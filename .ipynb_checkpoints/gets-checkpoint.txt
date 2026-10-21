@@ -1,0 +1,131 @@
+
+# pos_train
+python csv_to_fasta.py \
+    --input  /srv/jupyterlab/workspace/HLA1/fasta/iedb_sequences/train.csv \
+    --outdir /srv/jupyterlab/workspace/HLA1/fasta/iedb_fasta/pos_train \
+    --label  1
+
+# neg_train
+python csv_to_fasta.py \
+    --input  /srv/jupyterlab/workspace/HLA1/fasta/iedb_sequences/train.csv \
+    --outdir /srv/jupyterlab/workspace/HLA1/fasta/iedb_fasta/neg_train \
+    --label  0
+
+# pos_test
+python csv_to_fasta.py \
+    --input  /srv/jupyterlab/workspace/HLA1/fasta/iedb_sequences/test.csv \
+    --outdir /srv/jupyterlab/workspace/HLA1/fasta/iedb_fasta/pos_test \
+    --label  1
+
+# neg_test
+python csv_to_fasta.py \
+    --input  /srv/jupyterlab/workspace/HLA1/fasta/iedb_sequences/test.csv \
+    --outdir /srv/jupyterlab/workspace/HLA1/fasta/iedb_fasta/neg_test \
+    --label  0
+
+
+#################################################################
+
+# pos_train
+python ankh_emb.py \
+    -in  /srv/jupyterlab/workspace/HLA1/fasta/iedb_fasta/pos_train \
+    -out /srv/jupyterlab/workspace/HLA1/emb/ankh/pos_train
+
+# neg_train
+python ankh_emb.py \
+    -in  /srv/jupyterlab/workspace/HLA1/fasta/iedb_fasta/neg_train \
+    -out /srv/jupyterlab/workspace/HLA1/emb/ankh/neg_train
+
+# pos_test
+python ankh_emb.py\
+    -in  /srv/jupyterlab/workspace/HLA1/fasta/iedb_fasta/pos_test \
+    -out /srv/jupyterlab/workspace/HLA1/emb/ankh/pos_test
+
+# neg_test
+python ankh_emb.py\
+    -in  /srv/jupyterlab/workspace/HLA1/fasta/iedb_fasta/neg_test \
+    -out /srv/jupyterlab/workspace/HLA1/emb/ankh/neg_test
+
+##################################################################
+
+# pos_train
+python get_dataset.py \
+    -in     /srv/jupyterlab/workspace/HLA1/emb/prot5xl/pos_train \
+    -out    /srv/jupyterlab/workspace/HLA1/dataset/prot5xl/pos_train.npy \
+    -dt     .pt5 \
+    -maxseq 9
+
+# neg_train
+python get_dataset.py \
+    -in     /srv/jupyterlab/workspace/HLA1/emb/prot5xl/neg_train \
+    -out    /srv/jupyterlab/workspace/HLA1/dataset/prot5xl/neg_train.npy \
+    -dt     .pt5 \
+    -maxseq 9
+
+# pos_test
+python get_dataset.py \
+    -in     /srv/jupyterlab/workspace/HLA1/emb/prot5xl/pos_test \
+    -out    /srv/jupyterlab/workspace/HLA1/dataset/prot5xl/pos_test.npy \
+    -dt     .pt5 \
+    -maxseq 9
+
+# neg_test
+python get_dataset.py \
+    -in     /srv/jupyterlab/workspace/HLA1/emb/prot5xl/neg_test \
+    -out    /srv/jupyterlab/workspace/HLA1/dataset/prot5xl/neg_test.npy \
+    -dt     .pt5 \
+    -maxseq 9
+
+
+#############################################################################
+
+python mcnn.py ... --no_class_weight
+# Strategy A — peptide only
+python mcnn.py \
+    --data_path /srv/jupyterlab/workspace/HLA1/data/expanded_npy \
+    --strategy  A \
+    --maxseq    9 \
+    --output    /srv/jupyterlab/workspace/HLA1/results/stratA \
+    --mode      cross \
+    --epochs    20 \
+    --filters   1024 \
+    --hidden    1500 \
+    --batch_size 64 \
+    --window_sizes 2 3 5 9
+
+# Strategy B — peptide + HLA concat
+python mcnn.py \
+    --data_path   /srv/jupyterlab/workspace/HLA1/data/expanded_npy \
+    --hla_emb_dir /srv/jupyterlab/workspace/HLA1/hla/hla_embeddings \
+    --strategy    B \
+    --maxseq      43 \
+    --output      /srv/jupyterlab/workspace/HLA1/results/stratB \
+    --mode        independent \
+    --epochs      20 \
+    --filters     1024 \
+    --hidden      500 \
+    --batch_size  64 \
+    --window_sizes 2 3 5 9
+
+
+
+##########################################
+
+for ALLELE in A0101 A0201 A0301 A1101 A2402 B0702 B0801 B3501 B4001 B5101 B5701; do
+    for SPLIT in pos_train neg_train pos_test neg_test; do
+        python /srv/jupyterlab/workspace/HLA1/code/prot5xl_emb.py \
+            -in  /srv/jupyterlab/workspace/HLA1/data/expanded/HLA-${ALLELE}/${SPLIT} \
+            -out /srv/jupyterlab/workspace/HLA1/data/expanded_emb_prot5xl/HLA-${ALLELE}/${SPLIT}
+    done
+done
+
+
+for ALLELE in A0101 A0201 A0301 A1101 A2402 B0702 B0801 B3501 B4001 B5101 B5701; do
+    for SPLIT in pos_train neg_train pos_test neg_test; do
+        mkdir -p /srv/jupyterlab/workspace/HLA1/data/expanded_npy_prostt5/HLA-${ALLELE}
+        python /srv/jupyterlab/workspace/HLA1/code/get_dataset.py \
+            -in  /srv/jupyterlab/workspace/HLA1/data/expanded_emb_prostt5/HLA-${ALLELE}/${SPLIT} \
+            -out /srv/jupyterlab/workspace/HLA1/data/expanded_npy_prostt5/HLA-${ALLELE}/${SPLIT} \
+            -dt prostt5 -maxseq 9
+    done
+done
