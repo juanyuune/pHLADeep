@@ -1,19 +1,3 @@
-"""
-compute_stratified_auc.py
-=========================
-Fills in all empty cells in Table 10b and Table 10c.
-
-Computes:
-  - Length-stratified AUC (9-mer, 10-mer, 11-mer) for all 5 methods
-  - Allele-stratified AUC for all 5 methods
-  - Per-peptide scores for positives only (for Table 10c verification)
-
-Usage:
-  python compute_stratified_auc.py
-
-Output: prints all values ready to paste into the manuscript tables.
-"""
-
 import pickle
 import numpy as np
 import pandas as pd
@@ -21,7 +5,6 @@ from sklearn.metrics import roc_auc_score
 
 PKL_PATH = "/srv/jupyterlab/workspace/HLA1/results/casestudy_ms/casestudy_scores.pkl"
 
-# ── Load data ──────────────────────────────────────────────────────────────────
 with open(PKL_PATH, "rb") as f:
     d = pickle.load(f)
 
@@ -34,14 +17,13 @@ print("Methods found:", METHODS)
 print(f"Total rows: {len(df)}  |  Positives: {y_true.sum()}  |  Negatives: {(y_true==0).sum()}")
 print()
 
-# Attach labels and scores to df
 df["y_true"] = y_true
 for m in METHODS:
     df[m] = scores[m]
 
-# ── Helper: safe AUC (skip if <2 positives or all NaN) ─────────────────────────
+
 def safe_auc(y, s):
-    # Convert to plain numpy arrays first to avoid pandas index misalignment
+    # convert to plain numpy to avoid pandas index misalignment
     y = np.array(y, dtype=float)
     s = np.array(s, dtype=float)
     mask = ~np.isnan(s)
@@ -50,7 +32,7 @@ def safe_auc(y, s):
         return np.nan
     return roc_auc_score(y, s)
 
-# ── 1. Length-stratified AUC ───────────────────────────────────────────────────
+
 print("=" * 70)
 print("TABLE 10b — LENGTH-STRATIFIED AUC")
 print("=" * 70)
@@ -75,7 +57,6 @@ for L in lengths:
     print(row)
     length_rows.append((L, n_pos, n_neg, aucs))
 
-# All lengths combined
 print("-" * len(header))
 all_aucs = []
 for m in METHODS:
@@ -86,7 +67,6 @@ row = f"{'All':10} {int(y_true.sum()):>6} {int((y_true==0).sum()):>6}  " + \
 print(row)
 print()
 
-# ── 2. Allele-stratified AUC ───────────────────────────────────────────────────
 print("=" * 70)
 print("TABLE — ALLELE-STRATIFIED AUC")
 print("=" * 70)
@@ -110,7 +90,6 @@ for allele in alleles:
     print(row)
 print()
 
-# ── 3. Allele × Length AUC (A*03:01 9-mer vs 10-mer) ─────────────────────────
 print("=" * 70)
 print("ALLELE × LENGTH AUC (for A*03:01 breakdown)")
 print("=" * 70)
@@ -131,18 +110,15 @@ for allele in alleles:
         print(row)
 print()
 
-# ── 4. Per-peptide scores for ALL positives ────────────────────────────────────
 print("=" * 70)
 print("ALL POSITIVE PEPTIDES — per-peptide scores (sorted by Concat score)")
 print("=" * 70)
 
 pos = df[df["y_true"] == 1].copy()
-# find concat column name
 concat_col = [m for m in METHODS if "concat" in m.lower() or "Concat" in m]
 concat_col = concat_col[0] if concat_col else METHODS[0]
 pos = pos.sort_values(concat_col)
 
-# Build informative base columns from whatever the df actually has
 base_cols = ["peptide", "allele", "length"]
 for extra in ["neoantigen", "source", "label"]:
     if extra in pos.columns and extra not in base_cols:
@@ -154,7 +130,6 @@ with pd.option_context("display.max_columns", None, "display.width", 200,
     print(pos[cols_to_show].to_string(index=False))
 print()
 
-# ── 5. A*03:01 without KRAS 10-mers (counterfactual AUC) ─────────────────────
 print("=" * 70)
 print("COUNTERFACTUAL: A*03:01 AUC excluding KRAS 10-mers")
 print("=" * 70)
