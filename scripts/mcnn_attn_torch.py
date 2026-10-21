@@ -1,28 +1,3 @@
-"""
-mcnn_crossattn_torch.py  –  PLM + Peptide-HLA Cross-Attention + Position-Attention + MCNN
-===========================================================================================
-PyTorch version of Strategy C. Works with any PLM embedding dimension.
-
-Architecture:
-  1. PLM peptide embedding   : (N, 9,  dim)   Q (queries)
-  2. PLM HLA embedding       : (N, 34, dim)   K, V (keys, values)
-  3. Cross-attention         : (N, 9,  dim)   peptide attends to HLA
-  4. Residual + LayerNorm    : (N, 9,  dim)
-  5. Position-wise attention : learned anchor weighting over 9 positions
-  6. Multi-window CNN        : concat of MaxPool branches
-  7. Dense(hidden) → Dense(2, softmax)
-
-Usage (Ankh-Large):
-  python mcnn_crossattn_torch.py \
-      --data_path   /srv/jupyterlab/workspace/HLA1/data/expanded_npy_ankh \
-      --hla_emb_dir /srv/jupyterlab/workspace/HLA1/hla/hla_embeddings_ankh \
-      --output      /srv/jupyterlab/workspace/HLA1/results/stratC \
-      --mode        independent \
-      --num_feature 1536 --plm_name ankh \
-      --epochs 20 --filters 1024 --hidden 500 \
-      --window_sizes 2 3 5 9
-"""
-
 import os
 import gc
 import csv
@@ -43,7 +18,6 @@ from sklearn.metrics import roc_curve
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(message)s")
 
-# ── CLI ────────────────────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
 parser.add_argument("--data_path",    type=str, required=True)
 parser.add_argument("--hla_emb_dir",  type=str,
@@ -60,10 +34,8 @@ parser.add_argument("--window_sizes", type=int, nargs="+", default=[2, 3, 5, 9])
 parser.add_argument("--num_heads",    type=int, default=8)
 parser.add_argument("--attn_dropout", type=float, default=0.1)
 parser.add_argument("--lr",           type=float, default=1e-3)
-parser.add_argument("--num_feature",  type=int, default=1536,
-                    help="PLM embedding dimension (e.g. 1536 for Ankh, 1280 for ESM-2)")
-parser.add_argument("--plm_name",     type=str, default="",
-                    help="PLM label for output filenames (e.g. ankh, esm2)")
+parser.add_argument("--num_feature",  type=int, default=1536)
+parser.add_argument("--plm_name",     type=str, default="")
 args = parser.parse_args()
 
 os.makedirs(args.output, exist_ok=True)
@@ -77,7 +49,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 logging.info("Device: %s", device)
 if torch.cuda.is_available():
     logging.info("GPU: %s", torch.cuda.get_device_name(0))
-    torch.backends.cudnn.benchmark = True   # auto-tune conv kernels for fixed input sizes
+    torch.backends.cudnn.benchmark = True
 
 ALLELE_TAGS = [
     "HLA-A0101", "HLA-A0201", "HLA-A0301", "HLA-A1101", "HLA-A2402",
@@ -86,11 +58,7 @@ ALLELE_TAGS = [
 ]
 
 
-# ── Data loaders ───────────────────────────────────────────────────────────────
 def load_hla_embeddings(hla_emb_dir):
-    """Auto-detect extension and load HLA pseudosequence embeddings.
-    Returns dict: allele_tag → numpy array (34, EMB_DIM).
-    """
     hla_embs = {}
     for allele_tag in ALLELE_TAGS:
         matched = [f for f in os.listdir(hla_emb_dir)
@@ -113,7 +81,6 @@ def load_hla_embeddings(hla_emb_dir):
 
 
 def load_npy_split(npy_path, label, hla_emb):
-    """Load one .npy file. Shape (N, 1, 9, dim) → squeeze → (N, 9, dim)."""
     arr = np.load(npy_path)          # (N, 1, 9, dim)
     arr = arr[:, 0, :, :]           # (N, 9, dim)
     arr = arr.astype(np.float32)
@@ -124,7 +91,6 @@ def load_npy_split(npy_path, label, hla_emb):
 
 
 def load_dataset(data_path, hla_embeddings):
-    """Load all alleles from expanded_npy_ankh/ directory."""
     peps_tr, hlas_tr, labels_tr = [], [], []
     peps_te, hlas_te, labels_te = [], [], []
 
@@ -179,10 +145,9 @@ def load_dataset(data_path, hla_embeddings):
     return pep_tr, hla_tr, y_tr, pep_te, hla_te, y_te
 
 
-# ── Dataset ────────────────────────────────────────────────────────────────────
 class PepHLADataset(Dataset):
     def __init__(self, pep, hla, y):
-        # Store as float16 to halve CPU→GPU transfer bandwidth (2 bytes vs 4 bytes per value)
+        # float16 to halve CPU→GPU transfer bandwidth
         self.pep = torch.tensor(pep, dtype=torch.float16)
         self.hla = torch.tensor(hla, dtype=torch.float16)
         self.y   = torch.tensor(y,   dtype=torch.long)
@@ -194,12 +159,7 @@ class PepHLADataset(Dataset):
         return self.pep[i], self.hla[i], self.y[i]
 
 
-# ── Model ──────────────────────────────────────────────────────────────────────
 class PeptideHLACrossAttention(nn.Module):
-    """Multi-head cross-attention: peptide attends to HLA.
-    Projects d_model → attn_dim internally to reduce memory, then projects back.
-    This avoids 1536×1536 weight matrices that cause CUDA OOM on large PLMs.
-    """
     def __init__(self, d_model, num_heads=8, dropout=0.1, attn_dim=256):
         super().__init__()
         assert attn_dim % num_heads == 0
@@ -208,11 +168,10 @@ class PeptideHLACrossAttention(nn.Module):
         self.d_model   = d_model
         self.attn_dim  = attn_dim
 
-        # Project down to attn_dim for Q, K, V
+        # project down to attn_dim to avoid OOM on large PLMs
         self.W_q = nn.Linear(d_model, attn_dim, bias=False)
         self.W_k = nn.Linear(d_model, attn_dim, bias=False)
         self.W_v = nn.Linear(d_model, attn_dim, bias=False)
-        # Project back to d_model
         self.W_o = nn.Linear(attn_dim, d_model, bias=False)
 
         self.attn_drop  = nn.Dropout(dropout)
@@ -220,8 +179,7 @@ class PeptideHLACrossAttention(nn.Module):
         self.scale      = math.sqrt(self.d_head)
 
     def forward(self, peptide, hla):
-        # peptide: (B, 9,  D)
-        # hla    : (B, 34, D)
+        # peptide: (B, 9, D)   hla: (B, 34, D)
         B = peptide.size(0)
 
         def split_heads(x, seq_len):
@@ -245,7 +203,6 @@ class PeptideHLACrossAttention(nn.Module):
 
 
 class PositionAttention(nn.Module):
-    """Softmax weights over the 9 peptide positions."""
     def __init__(self, num_positions=9):
         super().__init__()
         self.score = nn.Linear(num_positions, num_positions, bias=True)
@@ -266,10 +223,10 @@ class DeepScanCrossAttn(nn.Module):
 
         self.cross_attn = PeptideHLACrossAttention(
             d_model=emb_dim, num_heads=num_heads, dropout=attn_dropout,
-            attn_dim=256)   # project to 256 for attention; avoids OOM on large PLMs
+            attn_dim=256)
         self.pos_attn   = PositionAttention(num_positions=maxseq)
 
-        # Project from emb_dim → cnn_dim before CNN to reduce computation
+        # project to smaller dim before CNN
         self.cnn_dim  = 256
         self.proj_cnn = nn.Linear(emb_dim, self.cnn_dim)
 
@@ -315,7 +272,6 @@ class DeepScanCrossAttn(nn.Module):
         return x, attn_w
 
 
-# ── Train + eval ───────────────────────────────────────────────────────────────
 def evaluate(model, pep_te, hla_te, y_te):
     model.eval()
     pep_t = torch.tensor(pep_te, dtype=torch.float32)
@@ -373,7 +329,6 @@ def train_and_eval(pep_tr, hla_tr, y_tr, pep_te, hla_te, y_te, run_label="",
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logging.info("Model built. Trainable params: %s", f"{total_params:,}")
 
-    # Class weights for imbalanced data
     n_pos = (y_tr == 1).sum()
     n_neg = (y_tr == 0).sum()
     w_pos = n_neg / (n_pos + n_neg)
@@ -383,7 +338,7 @@ def train_and_eval(pep_tr, hla_tr, y_tr, pep_te, hla_te, y_te, run_label="",
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     criterion = nn.CrossEntropyLoss(weight=class_weights)
-    scaler    = torch.amp.GradScaler('cuda')   # AMP gradient scaler
+    scaler    = torch.amp.GradScaler('cuda')
 
     dataset = PepHLADataset(pep_tr, hla_tr, y_tr)
     loader  = DataLoader(dataset, batch_size=args.batch_size,
@@ -401,12 +356,10 @@ def train_and_eval(pep_tr, hla_tr, y_tr, pep_te, hla_te, y_te, run_label="",
         epoch_loss = 0.0
         t_batch_start = time.time()
         for batch_i, (pep_b, hla_b, y_b) in enumerate(loader, 1):
-            # float16 tensors from dataset → GPU (half the transfer size vs float32)
             pep_b = pep_b.to(device, non_blocking=True)
             hla_b = hla_b.to(device, non_blocking=True)
             y_b   = y_b.to(device,   non_blocking=True)
             optimizer.zero_grad()
-            # AMP: run forward pass in float16 where safe, float32 elsewhere
             with torch.autocast(device_type='cuda', dtype=torch.float16):
                 logits, _ = model(pep_b, hla_b)
                 loss = criterion(logits, y_b)
@@ -415,7 +368,6 @@ def train_and_eval(pep_tr, hla_tr, y_tr, pep_te, hla_te, y_te, run_label="",
             scaler.update()
             epoch_loss += loss.item() * len(y_b)
 
-            # Print progress every 100 batches with timing
             if batch_i % 100 == 0 or batch_i == n_batches:
                 elapsed = time.time() - t_batch_start
                 speed   = 100 / elapsed if batch_i % 100 == 0 else (batch_i % 100 or 100) / elapsed
@@ -454,7 +406,6 @@ def train_and_eval(pep_tr, hla_tr, y_tr, pep_te, hla_te, y_te, run_label="",
     logging.info("  Position weights (P1–P9): %s",
                  " ".join(f"{w:.3f}" for w in pos_weights))
 
-    # ── Save model weights ─────────────────────────────────────────────────────
     if weights_path is not None:
         torch.save(model.state_dict(), weights_path)
         logging.info("Model weights saved: %s", weights_path)
@@ -467,7 +418,6 @@ def train_and_eval(pep_tr, hla_tr, y_tr, pep_te, hla_te, y_te, run_label="",
             fpr, tpr, thresholds, ix, threshold, pred_prob, pos_weights)
 
 
-# ── Main ───────────────────────────────────────────────────────────────────────
 def main():
     logging.info("=== PLM + Peptide-HLA Cross-Attention + Position-Attention + MCNN ===")
     logging.info("data_path   : %s", args.data_path)
@@ -500,7 +450,6 @@ def main():
             weights_path=weights_path)
         elapsed = time.time() - t0
 
-        # --- save ROC curve PNG ---
         import matplotlib
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
@@ -520,7 +469,6 @@ def main():
         plt.close()
         logging.info("ROC curve saved: %s", roc_png)
 
-        # --- save ROC data pkl ---
         roc_data = {
             "plm":        args.plm_name,
             "strategy":   "C",
@@ -540,7 +488,6 @@ def main():
             pickle.dump(roc_data, f)
         logging.info("ROC data pkl saved: %s", pkl_path)
 
-        # --- save results CSV ---
         with open(results_path, "a", newline="") as f:
             w = csv.writer(f)
             if write_header:
