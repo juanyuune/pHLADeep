@@ -82,3 +82,115 @@ pHLADeep-Concat achieves AUC = 0.9070 without any HLA-specific pre-training or f
 ---
 
 ## Repository Structure
+
+```
+pHLADeep/
+├── get_emb_ankh.py              # Generate Ankh-Large embeddings for peptides
+├── get_emb_hla_pseudo_ankh.py   # Generate Ankh-Large embeddings for HLA pseudo-sequences (34 × 1536)
+├── import_data.py               # Data loader — Strategy A (peptide-only) and B (Concat)
+├── import_data_hla.py           # Data loader — per-sample correct allele fusion (ESM-2)
+├── mcnn.py                      # Train pHLADeep-Pep (TensorFlow/Keras)
+├── mcnn_concat_torch.py         # Train pHLADeep-Concat (PyTorch)
+├── mcnn_attn_torch.py           # Train pHLADeep-Attn — cross-attention + MCNN (PyTorch)
+├── benchmark_netmhc.py          # Benchmark vs. NetMHCpan 4.2 and MHCflurry 2.0
+├── case_study_ms.py             # External validation on Gurung et al. 2023 neoepitopes
+└── compute_stratified_auc.py    # Length- and allele-stratified AUC (Tables 10b–10f)
+```
+
+---
+
+## Requirements
+
+
+```
+torch>=2.0
+tensorflow>=2.10
+ankh
+numpy
+pandas
+h5py
+scikit-learn
+imbalanced-learn
+matplotlib
+openpyxl
+```
+
+NetMHCpan 4.2 and MHCflurry 2.0 must be installed separately for benchmarking.
+
+---
+
+## Usage
+
+### Step 1 — Generate HLA pseudo-sequence embeddings
+
+```bash
+python get_emb_hla_pseudo_ankh.py \
+    --csv  /path/to/hla_pseudosequences.csv \
+    --out  /path/to/hla_embeddings_ankh
+```
+
+Output: one `.npy` file per allele, shape `(34, 1536)`.
+
+### Step 2 — Generate peptide embeddings
+
+```bash
+python get_emb_ankh.py \
+    --fasta /path/to/peptides.fasta \
+    --out   /path/to/peptide_embeddings_ankh
+```
+
+### Step 3 — Train pHLADeep-Concat (recommended)
+
+```bash
+python mcnn_concat_torch.py \
+    --data_path   /path/to/embeddings \
+    --hla_emb_dir /path/to/hla_embeddings_ankh \
+    --output      /path/to/results \
+    --plm_name    ankh \
+    --num_feature 1536 \
+    --epochs      20 \
+    --filters     1024 \
+    --hidden      500
+```
+
+### Step 4 — Train pHLADeep-Attn
+
+```bash
+python mcnn_attn_torch.py \
+    --data_path   /path/to/embeddings \
+    --hla_emb_dir /path/to/hla_embeddings_ankh \
+    --output      /path/to/results \
+    --mode        independent \
+    --plm_name    ankh \
+    --num_feature 1536 \
+    --window_sizes 2 3 5 9 \
+    --epochs      20 \
+    --filters     1024 \
+    --hidden      500
+```
+
+### Step 5 — Benchmark
+
+```bash
+python benchmark_netmhc.py
+```
+
+### Step 6 — External validation
+
+```bash
+python case_study_ms.py
+```
+
+---
+
+## Citation
+
+If you use pHLADeep in your work, please cite:
+
+> Yuune JPT, Le VT, Nguyen DQ, Nguyen DL, Ou YY. pHLADeep: Protein Language Model-Based HLA Class I Binding Prediction with External Validation on MS-Confirmed Cancer Neoepitopes. *[journal, year, doi]*.
+
+---
+
+## Acknowledgements
+
+This work was supported by the National Science and Technology Council, Taiwan, under Grant No. NSTC 112-2221-E-155-020-MY3, NSTC 114-2221-E-155-028-MY3, and NSTC 115-2811-E-155-003.
