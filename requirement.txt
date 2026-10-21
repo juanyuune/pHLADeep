@@ -1,0 +1,10 @@
+torch>=2.0
+tensorflow>=2.10
+ankh
+numpy
+pandas
+h5py
+scikit-learn
+imbalanced-learn
+matplotlib
+openpyxl
